@@ -1,4 +1,4 @@
-package main
+package infra
 
 import (
 	"context"
@@ -6,30 +6,21 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gabrielmq/golang-serverless/internal/entity"
+	"github.com/gabrielmq/golang-serverless/internal/infra/dynamo"
 	"github.com/google/uuid"
 )
 
-type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-func InsertProduct(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	var product Product
+func InsertProductHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	var product entity.Product
 	if err := json.Unmarshal([]byte(request.Body), &product); err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
-	// abre uma sessao com a aws
-	sess := session.Must(session.NewSession())
-
 	// inicializa o servico do dynamo
-	svc := dynamodb.New(sess)
+	svc := dynamo.NewDynamoSession()
 
 	// preparando o dado para insert no dynamo
 	product.ID = uuid.New().String()
@@ -45,12 +36,12 @@ func InsertProduct(ctx context.Context, request events.APIGatewayProxyRequest) e
 	// inserindo na tabela do dynamo
 	_, err := svc.PutItem(input)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
 	body, err := json.Marshal(product)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
 	return events.APIGatewayProxyResponse{
@@ -59,10 +50,5 @@ func InsertProduct(ctx context.Context, request events.APIGatewayProxyRequest) e
 			"Content-Type": "application/json",
 		},
 		Body: string(body),
-	}
-}
-
-func main() {
-	// iniciando a lambda function
-	lambda.Start(InsertProduct)
+	}, nil
 }

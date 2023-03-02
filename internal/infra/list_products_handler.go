@@ -1,4 +1,4 @@
-package main
+package infra
 
 import (
 	"context"
@@ -6,21 +6,14 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gabrielmq/golang-serverless/internal/entity"
+	"github.com/gabrielmq/golang-serverless/internal/infra/dynamo"
 )
 
-type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-func ListProducts(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	sess := session.Must(session.NewSession())
-	svc := dynamodb.New(sess)
+func ListProductsHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	svc := dynamo.NewDynamoSession()
 
 	// preparando a busca no dynamo
 	input := &dynamodb.ScanInput{
@@ -29,17 +22,17 @@ func ListProducts(ctx context.Context, request events.APIGatewayProxyRequest) ev
 
 	result, err := svc.Scan(input)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
-	var products []Product
+	var products []entity.Product
 	for _, item := range result.Items {
 		price, err := strconv.Atoi(*item["price"].N)
 		if err != nil {
-			return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+			return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 		}
 
-		products = append(products, Product{
+		products = append(products, entity.Product{
 			ID:    *item["id"].S,
 			Name:  *item["name"].S,
 			Price: float64(price),
@@ -48,7 +41,7 @@ func ListProducts(ctx context.Context, request events.APIGatewayProxyRequest) ev
 
 	body, err := json.Marshal(products)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
 	return events.APIGatewayProxyResponse{
@@ -57,9 +50,5 @@ func ListProducts(ctx context.Context, request events.APIGatewayProxyRequest) ev
 			"Content-Type": "application/json",
 		},
 		Body: string(body),
-	}
-}
-
-func main() {
-	lambda.Start(ListProducts)
+	}, nil
 }
