@@ -1,3 +1,5 @@
+## Serverless Framework é uma ferramenta que automatiza o provisionamento de recursos em um cloud provider
+
 plugins:
   - serverless-localstack
   - serverless-deployment-bucket
@@ -6,9 +8,9 @@ service: golang-serverless
 
 frameworkVersion: '3'
 
+# inicio da configuração do localstack
 custom:
   localstack:
-    # debug: true
     stages:
       - local
     host: http://localhost
@@ -18,8 +20,8 @@ custom:
       mountCode: False
     deploymentBucket:
       name: serverless
-      maxPreviousDeploymentArtifacts: 0
 
+# inicio da configuração do cloud provider que será utilizado
 provider:
   name: aws
   runtime: go1.x
@@ -27,14 +29,17 @@ provider:
   region: us-east-1
   environment:
     DYNAMODB_TABLE: Products
+  # definindo as permissões na aws
   iam:
     role:
       statements:
+        # permitindo a leitura e escrita no dynamo
         - Effect: Allow
           Action:
             - dynamodb:PutItem
             - dynamodb:Scan
-          Resource:
+          # informa como o serviço do dynamo é identificado na aws
+          Resource: # vai criar automáticamente o resource do dynamo lá na aws se ele não existir
             - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}
 
 package:
@@ -42,24 +47,32 @@ package:
     - '!./**'
     - ./bin/**
 
+# inicio da configuração das functions e como elas serão executadas
 functions:
+  # define o nome da lambda
   insert:
+    # caminho até o binário a ser executado
     handler: bin/InsertProduct
+    # configuração de quais eventos que devem disparar a execução da lambda
     events:
+      # configura APIGateway para tratar que todo request POST no /products execute a lambda de cadastro
       - http:
           path: /products
           method: post
 
+  # define o nome da lambda
   list:
     handler: bin/ListProducts
     events:
+      # configura APIGateway para tratar que todo request GET no /products execute a lambda de listagem
       - http:
           path: /products
           method: get
   
-
+# inicio da configuração dos recursos na cloud
 resources:
   Resources:
+    # configurando a criação automática da tabela do dynamo na aws
     Products:
       Type: AWS::DynamoDB::Table
       Properties:
